@@ -2,14 +2,13 @@
 import os.path
 import time
 
+import numpy as np
 import pydicom
-from PyQt5.QtCore import Qt
+import torch
+from PIL import Image
 from PyQt5.QtGui import (
-    QBrush,
     QPainter,
-    QPen,
     QPixmap,
-    QKeySequence,
     QPen,
     QBrush,
     QColor,
@@ -18,28 +17,18 @@ from PyQt5.QtGui import (
 from PyQt5.QtWidgets import (
     QFileDialog,
     QApplication,
-    QGraphicsEllipseItem,
-    QGraphicsItem,
-    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
-    QGraphicsPixmapItem,
     QHBoxLayout,
     QPushButton,
-    QSlider,
     QVBoxLayout,
     QWidget,
-    QShortcut,
 )
-
-import numpy as np
 from skimage import transform, io
-import torch
-import torch.nn as nn
 from torch.nn import functional as F
-from PIL import Image
 
 from segment_anything import sam_model_registry
+
 #设置随机数种子，清楚gpu显存
 torch.manual_seed(2023)
 torch.cuda.empty_cache()
