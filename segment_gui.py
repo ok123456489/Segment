@@ -160,7 +160,7 @@ class Window(QWidget):
         self.seg_view = QGraphicsView()
         self.seg_view.setRenderHint(QPainter.Antialiasing)
         #加载图片
-        self.load_image()
+        self.load_image_folder()
 
         # 创建水平布局并添加图片框
         hbox1 = QHBoxLayout()
@@ -170,11 +170,13 @@ class Window(QWidget):
         #读取/保存按钮
         load_button = QPushButton("读取图片")
         save_button = QPushButton("保存截取图片")
+        next_button = QPushButton("下一张图片")
 
         #创建水平布局，并且添加按键
         hbox2 = QHBoxLayout()
         hbox2.addWidget(load_button)
         hbox2.addWidget(save_button)
+        hbox2.addWidget(next_button)
 
         #创建垂直布局
         vbox = QVBoxLayout()
@@ -188,6 +190,8 @@ class Window(QWidget):
         self.resize(600, 400)
         load_button.clicked.connect(self.load_image)
         save_button.clicked.connect(self.save_seg_pic)
+        next_button.clicked.connect(self.next_image)
+
 
     #读取DICOM中的图片
     def dcm_to_png(self,file_path):
@@ -209,17 +213,38 @@ class Window(QWidget):
         image = Image.fromarray(pixel_array)
         return image
 
-    #加载图片
-    def load_image(self):
-        #加载图片
-        file_path, file_type = QFileDialog.getOpenFileName(
-            self, "Choose Image to Segment", ".", "Image Files (*.png *.jpg *.bmp *.dcm)"
-        )
+    # 加载图片文件夹
+    def load_image_folder(self):
+        # 加载图片文件夹
+        self.image_folder = QFileDialog.getExistingDirectory(self, "选择图片文件夹", ".")
+        if not self.image_folder:
+            print("未选择文件夹，请重新选择")
+            return
+        # 获取文件夹中的所有图片文件
+        self.image_paths = [
+            os.path.join(self.image_folder, f)
+            for f in os.listdir(self.image_folder)
+            if f.lower().endswith((".png", ".jpg", ".bmp", ".dcm"))
+        ]
+        if not self.image_paths:
+            print("文件夹中没有支持的图片文件")
+            return
+        # 加载第一张图片
+        self.current_image_index = 0
+        self.load_image(self.image_paths[self.current_image_index])
 
-        #没有选择图片
-        if file_path is None or len(file_path) == 0:
-            print("No image path specified, plz select an image")
-            exit()
+
+    #加载图片
+    def load_image(self,file_path):
+        # #加载图片
+        # file_path, file_type = QFileDialog.getOpenFileName(
+        #     self, "Choose Image to Segment", ".", "Image Files (*.png *.jpg *.bmp *.dcm)"
+        # )
+        #
+        # #没有选择图片
+        # if file_path is None or len(file_path) == 0:
+        #     print("No image path specified, plz select an image")
+        #     exit()
 
         #选择dcm格式数据，先进行图片读取
         if file_path.lower().endswith('.dcm') :
@@ -248,7 +273,7 @@ class Window(QWidget):
         # 转化np数组为可输出的图片
         pic_pixmap = np2pixmap(self.img_3c)
 
-        #获取图片shaper（H,W,C）
+        #获取图片shape（H,W,C）
         H, W, _ = self.img_3c.shape
 
         #图片框
@@ -284,6 +309,15 @@ class Window(QWidget):
         self.pic_scene.mousePressEvent = self.mouse_press
         self.pic_scene.mouseMoveEvent = self.mouse_move
         self.pic_scene.mouseReleaseEvent = self.mouse_release
+
+        # 下一张图片
+    def next_image(self):
+        if self.current_image_index < len(self.image_paths) - 1:
+            self.current_image_index += 1
+            self.load_image(self.image_paths[self.current_image_index])
+        else:
+            print("已经是最后一张图片")
+
 
     def mouse_press(self, ev):
         x, y = ev.scenePos().x(), ev.scenePos().y()
@@ -395,13 +429,20 @@ class Window(QWidget):
             os.makedirs(save_path)
             out_path = os.path.join(save_path, output_file_name)
 
-        print(type(self.seg_pic))
+        #print(type(self.seg_pic))
         if isinstance(self.seg_pic, Image.Image):
             seg_pic_np = np.array(self.seg_pic)
         else:
             seg_pic_np = self.seg_pic_np
         io.imsave(out_path,seg_pic_np)
+        # 清空截取图片框
+        self.seg_pic = np.full((*self.img_3c.shape[:2], 3), 255, dtype="uint8")
+        seg_pixmap = np2pixmap(self.seg_pic)
+        self.seg_pic = self.seg_scene.addPixmap(seg_pixmap)
+        self.seg_pic.setPos(0, 0)
 
+
+    #resize图片，并且获取特征图
     @torch.no_grad()
     def get_embeddings(self):
         print("Calculating embedding, gui may be unresponsive.")
